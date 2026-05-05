@@ -47,8 +47,11 @@ Posting one attachment per CVE doesn't scale to 250/day, so the script picks wha
   (criticals are never dropped).
 
 For example, with the defaults: a day with 5 CVEs at `>= 9.0` would post those 5 plus the 15 highest below 9.0; a day
-with 27 at `>= 9.0` would post all 27. Each Mattermost message carries up to 10 attachments, so larger posts are split
-into chunks with a `(part N/M)` suffix.
+with 27 at `>= 9.0` would post all 27. Everything is sent as a single Mattermost message body in markdown (no
+attachments, no chunking) so the post is dense and scannable.
+
+Note: if your Mattermost server has a low `MaxPostSize` (default 4000 chars, often raised to 16383+ on self-hosted),
+larger digests may be truncated. Tighten `CVE_TARGET_COUNT` or shrink `CVE_DESC_MAX_CHARS` if that becomes an issue.
 
 ### Running locally
 
@@ -70,6 +73,8 @@ Both knobs read from the environment, so they're easy to override locally or per
 |----------|---------|--------|
 | `CVE_ALWAYS_MIN_SCORE` | `9.0` | Every CVE at or above this CVSS base score is always included. |
 | `CVE_TARGET_COUNT` | `20` | Target post count. The selection is padded up to this with the next-highest-scoring CVEs below the floor. If the always-included set already exceeds the target, it's posted in full. |
+| `CVE_DESC_MAX_CHARS` | `240` | Truncates each CVE's description to fit more of them on screen. |
+| `DRY_RUN` | unset | If set to `1`/`true`, skips the openziti import and the HTTP POST and prints the JSON payload(s) to stdout instead. Lets you iterate locally without a Ziti identity or webhook. |
 
 Example -- tighten to "criticals only, top 10":
 
@@ -77,3 +82,23 @@ Example -- tighten to "criticals only, top 10":
 CVE_ALWAYS_MIN_SCORE=9.5 CVE_TARGET_COUNT=10 \
     ./scripts/run-cve-alert.sh "$(cat ./my-identity.json)" "$MM_WEBHOOK_URL"
 ```
+
+### Dry run (no Ziti identity, no webhook needed)
+
+To iterate on selection logic and rendering without posting anywhere, set `DRY_RUN=1` and skip the Ziti identity:
+
+```bash
+DRY_RUN=1 python3 cve-alert-zitified.py
+```
+
+The script skips the `openziti` import entirely and prints the Mattermost JSON payload it would have sent.
+
+To preview how the message will actually render in Mattermost, switch to markdown output and paste the result into any
+Mattermost channel:
+
+```bash
+DRY_RUN=1 DRY_RUN_FORMAT=markdown python3 cve-alert-zitified.py
+```
+
+(The colored sidebar on each attachment is a webhook feature and won't appear in pasted markdown, but everything else
+matches.)
