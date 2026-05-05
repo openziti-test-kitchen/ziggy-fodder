@@ -8,10 +8,16 @@ Posts a daily Mattermost summary of network-exploitable, no-privileges-required 
 overlay.
 
 Originally written as an AWS Lambda that pulled its Ziti identity from AWS Secrets Manager and ran on a 15-minute
-CloudWatch schedule. **Rewritten in May 2026 to run as a GitHub Actions workflow** (`.github/workflows/cve-alert.yml`)
-on a daily cron, with the Ziti identity supplied via the `ZITI_MATTERMOST_IDENTITY` repo/org secret and the zitified
-Mattermost webhook URL via `ZHOOK_URL_ZIGGY_FODDER`. The 2026 rewrite also moves the script from the retired NVD v1.0
-API to NVD v2.0 and switches the Mattermost payload to the richer `attachments[]` format.
+CloudWatch schedule. **Rewritten in May 2026 to run as a pair of GitHub Actions workflows**:
+
+- `.github/workflows/cve-alert-daily.yml` -- 10:00 UTC every day, "blocks" format, 24-hour window.
+- `.github/workflows/cve-alert-weekly.yml` -- 10:00 UTC Monday, markdown table, 7-day window, tighter floor.
+
+Both call the same `cve-alert-zitified.py` script via `scripts/run-cve-alert.sh`, with behavior driven by `CVE_*` env
+vars (see Tuning below). The Ziti identity is supplied via the `ZITI_MATTERMOST_IDENTITY` repo/org secret and the
+zitified Mattermost webhook URL via `ZHOOK_URL_ZIGGY_FODDER`. The 2026 rewrite also moves the script from the retired
+NVD v1.0 API to NVD v2.0 and ships the digest as a single dense markdown message rather than a fan-out of attachment
+cards.
 
 The pre-rewrite Lambda version is preserved at the
 [AWS-lambda release tag](https://github.com/openziti-test-kitchen/ziggy-fodder/releases/tag/AWS-lambda).
@@ -73,7 +79,11 @@ Both knobs read from the environment, so they're easy to override locally or per
 |----------|---------|--------|
 | `CVE_ALWAYS_MIN_SCORE` | `9.0` | Every CVE at or above this CVSS base score is always included. |
 | `CVE_TARGET_COUNT` | `20` | Target post count. The selection is padded up to this with the next-highest-scoring CVEs below the floor. If the always-included set already exceeds the target, it's posted in full. |
-| `CVE_DESC_MAX_CHARS` | `240` | Truncates each CVE's description to fit more of them on screen. |
+| `CVE_DESC_MAX_CHARS` | `240` | Truncates each CVE's description in `blocks` format. The `table` format uses its own hard cap of 140 chars per row to keep cells single-line. |
+| `CVE_WINDOW_DAYS` | `1` | Size of the lookback window in days. Daily uses `1`; weekly uses `7`. |
+| `CVE_OUTPUT_FORMAT` | `blocks` | `blocks` (default) renders one CVE per markdown chunk with icon + bold link + description. `table` renders a single markdown table that copies cleanly into Excel/Sheets and is easier to scan for non-engineering readers. |
+| `CVE_HEADER_PREFIX` | unset | Free-form text prepended above the standard summary header. The weekly workflow sources this from the `ZIGGY_FODDER_HEADER_PREFIX` GitHub secret so the recipient/wording (e.g. `@mark.jaffe here's the weekly CVE report!`) can be changed without a code edit. The secret value is masked in workflow logs but passes through to Mattermost intact. |
+| `NVD_API_KEY` | unset | Optional NVD API key (free, registers in 2 minutes at <https://nvd.nist.gov/developers/request-an-api-key>). With a key NVD raises the rate limit from 5 to 50 req / 30s and gives requests higher priority. |
 | `DRY_RUN` | unset | If set to `1`/`true`, skips the openziti import and the HTTP POST and prints the JSON payload(s) to stdout instead. Lets you iterate locally without a Ziti identity or webhook. |
 
 Example -- tighten to "criticals only, top 10":
