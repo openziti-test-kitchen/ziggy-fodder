@@ -2,10 +2,12 @@ name: keepalive
 
 on:
   schedule:
-    # 12:00 UTC on the 1st and 10th of every month. Twice-monthly leaves retry
-    # margin: a single missed run stays well inside the 60-day window after
-    # which GitHub disables scheduled workflows for inactivity.
-    - cron: '0 12 1,10 * *'
+    # Fires daily, but scripts/keepalive.sh no-ops until the last commit is
+    # older than ~50 days -- so it only commits when the repo is actually
+    # nearing GitHub's 60-day scheduled-workflow inactivity cutoff, and daily
+    # runs give ~10 days of retry margin. The odd minute avoids the heavily
+    # contended top-of-hour slot GitHub is most likely to drop.
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Bump keepalive timestamp
+      - name: Keepalive (commits only if the repo is going stale)
         run: |
           chmod +x ./scripts/keepalive.sh
           ./scripts/keepalive.sh
