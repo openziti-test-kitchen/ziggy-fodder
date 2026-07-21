@@ -1,0 +1,22 @@
+name: keepalive
+
+on:
+  schedule:
+    # 12:00 UTC on the 1st of every month -- well inside the 60-day window
+    # after which GitHub disables scheduled workflows for inactivity.
+    - cron: '0 12 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump keepalive timestamp
+        run: |
+          chmod +x ./scripts/keepalive.sh
+          ./scripts/keepalive.sh
