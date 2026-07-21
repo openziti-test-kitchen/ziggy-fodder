@@ -2,9 +2,10 @@ name: keepalive
 
 on:
   schedule:
-    # 12:00 UTC on the 1st of every month -- well inside the 60-day window
-    # after which GitHub disables scheduled workflows for inactivity.
-    - cron: '0 12 1 * *'
+    # 12:00 UTC on the 1st and 10th of every month. Twice-monthly leaves retry
+    # margin: a single missed run stays well inside the 60-day window after
+    # which GitHub disables scheduled workflows for inactivity.
+    - cron: '0 12 1,10 * *'
   workflow_dispatch:
 
 permissions:
